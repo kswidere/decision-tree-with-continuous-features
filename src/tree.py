@@ -8,6 +8,17 @@ class TreeNode:
         else:
             self.test = kwargs["test"]
 
+    def predict(self, dataset):
+        predicted_targets = []
+        for row in dataset:
+            if self.is_leaf:
+                predicted_targets.append(self.target)
+            if self.test(row):
+                self.left.predict()
+            else:
+                self.right.predict()
+        return predicted_targets
+
 
 class DecisionTree:
     def __init__(self, train_dataset, train_targets, test_method,
@@ -71,8 +82,14 @@ class DecisionTree:
     def find_possible_tests(self):
         return self.test_method.find_possible_tests(self.train_dataset)
 
-    def find_new_dataset(test, test_passed: bool):
-        pass
+    def find_new_dataset(self, test, test_passed: bool):
+        new_dataset = self.train_dataset
+        new_targets = self.train_targets
+        for idx, row in enumerate(self.train_dataset):
+            if test(row) is test_passed:
+                new_dataset.remove(row)
+                del new_targets[idx]
+        return (new_dataset, new_targets)
 
-    def predict(self, data):
-        pass
+    def predict(self, dataset):
+        return self.root.predict(dataset)
