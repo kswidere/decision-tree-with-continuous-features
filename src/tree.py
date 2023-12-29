@@ -68,11 +68,6 @@ class DecisionTree:
             return self.find_default_target()
         return None
 
-    def choose_target(self):
-        if not self.train_dataset:
-            return self.default_target
-        return self.find_default_target()
-
     def choose_test(self):
         return self.test_method.choose_test()
 
@@ -86,7 +81,7 @@ class DecisionTree:
         new_dataset = self.train_dataset
         new_targets = self.train_targets
         for idx, row in enumerate(self.train_dataset):
-            if test(row) is test_passed:
+            if test(row) is not test_passed:
                 new_dataset.remove(row)
                 del new_targets[idx]
         return (new_dataset, new_targets)
