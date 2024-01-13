@@ -1,3 +1,7 @@
+import pandas as pd
+from test_methods import EqualFrequency, TestMethod
+
+
 class TreeNode:
     def __init__(self, is_leaf, **kwargs):
         self.left: TreeNode = None
@@ -13,10 +17,10 @@ class TreeNode:
         for row in dataset:
             if self.is_leaf:
                 predicted_targets.append(self.target)
-            if self.test(row):
-                self.left.predict()
+            elif self.test(row):
+                predicted_targets.extend(self.left.predict([row]))
             else:
-                self.right.predict()
+                predicted_targets.extend(self.right.predict([row]))
         return predicted_targets
 
 
@@ -69,7 +73,7 @@ class DecisionTree:
         return None
 
     def choose_test(self):
-        return self.test_method.choose_test()
+        return self.test_method.choose_test(self.train_dataset)
 
     def find_default_target(self):
         return max(set(self.train_targets), key=self.train_targets.count)
@@ -88,3 +92,20 @@ class DecisionTree:
 
     def predict(self, dataset):
         return self.root.predict(dataset)
+
+
+if __name__ == "__main__":
+    data = pd.read_csv('diabetes.csv')
+
+    # Podział danych na cechy i etykiety
+    features = data.drop('Outcome', axis=1)
+    labels = data['Outcome']
+
+    # Konwersja na listy
+    features_list = features.values.tolist()
+    labels_list = labels.values.tolist()
+
+    tree = DecisionTree(features_list, labels_list, EqualFrequency())
+    tree.fit()
+    predictions = tree.predict(features_list)
+    print(predictions)
