@@ -13,20 +13,20 @@ class EqualFrequency(TestMethod):
         self.possible_tests = []
 
     def choose_test(self, train_dataset):
-        if not self.possible_tests:
-            self.find_possible_tests(train_dataset)
         return self.possible_tests.pop()
 
     def find_possible_tests(self, train_dataset):
-        # Sortujemy dane
-        # zakładamy, że testujemy pierwszy atrybut
-        sorted_dataset = sorted(train_dataset, key=lambda x: x[0])
-        # Dzielimy dane na dwie równoliczne grupy
-        mid_index = len(sorted_dataset) // 2
-        # Tworzymy test na podstawie mediany
-        threshold = (sorted_dataset[mid_index - 1]
-                     [0] + sorted_dataset[mid_index][0]) / 2
-        self.possible_tests.append(lambda x: x[0] <= threshold)
+        num_attributes = len(train_dataset[0])-1
+
+        for attribute_index in range(num_attributes):
+            sorted_dataset = sorted(
+                train_dataset, key=lambda x: x[attribute_index])
+            mid_index = len(sorted_dataset) // 2
+            threshold = (sorted_dataset[mid_index - 1][attribute_index] +
+                         sorted_dataset[mid_index][attribute_index]) / 2
+            self.possible_tests.append(
+                lambda x: x[attribute_index] <= threshold)
+        return self.possible_tests
 
 # class EqualFrequency(TestMethod):
 #     def choose_test(self, train_dataset):

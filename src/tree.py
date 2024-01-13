@@ -1,5 +1,6 @@
 import pandas as pd
-from test_methods import EqualFrequency, TestMethod
+from test_methods import EqualFrequency
+from copy import deepcopy
 
 
 class TreeNode:
@@ -15,13 +16,17 @@ class TreeNode:
     def predict(self, dataset):
         predicted_targets = []
         for row in dataset:
-            if self.is_leaf:
-                predicted_targets.append(self.target)
-            elif self.test(row):
-                predicted_targets.extend(self.left.predict([row]))
-            else:
-                predicted_targets.extend(self.right.predict([row]))
+            prediction = self.predict_row(row)
+            predicted_targets.append(prediction)
         return predicted_targets
+
+    def predict_row(self, row):
+        if self.is_leaf:
+            return self.target
+        elif self.test(row):
+            return self.left.predict_row(row)
+        else:
+            return self.right.predict_row(row)
 
 
 class DecisionTree:
@@ -30,8 +35,10 @@ class DecisionTree:
         self.train_dataset = train_dataset
         self.train_targets = train_targets
         self.test_method = test_method
-        self.default_target = default_target or self.find_default_target()
-        self.possible_tests = possible_tests or self.find_possible_tests()
+        self.default_target = (self.find_default_target()
+                               if default_target is None else default_target)
+        self.possible_tests = (self.find_possible_tests()
+                               if possible_tests is None else possible_tests)
         self.root: TreeNode = self.fit()
 
     def __str__(self):
@@ -45,19 +52,18 @@ class DecisionTree:
             return leaf
 
         test = self.choose_test()
-        root = TreeNode(False, test=test)
+        root = TreeNode(False, test=deepcopy(test))
         default_target = self.find_default_target()
         left_dataset, left_targets = self.find_new_dataset(test, False)
         right_dataset, right_targets = self.find_new_dataset(test, True)
-        possible_tests = self.possible_tests.remove(test)
 
         subtree_left = DecisionTree(left_dataset, left_targets,
                                     self.test_method, default_target,
-                                    possible_tests)
+                                    self.possible_tests)
 
         subtree_right = DecisionTree(right_dataset, right_targets,
                                      self.test_method, default_target,
-                                     possible_tests)
+                                     self.possible_tests)
 
         root.left = subtree_left.root
         root.right = subtree_right.root
@@ -82,12 +88,12 @@ class DecisionTree:
         return self.test_method.find_possible_tests(self.train_dataset)
 
     def find_new_dataset(self, test, test_passed: bool):
-        new_dataset = self.train_dataset
-        new_targets = self.train_targets
+        new_dataset = deepcopy(self.train_dataset)
+        new_targets = deepcopy(self.train_targets)
         for idx, row in enumerate(self.train_dataset):
             if test(row) is not test_passed:
+                del new_targets[new_dataset.index(row)]
                 new_dataset.remove(row)
-                del new_targets[idx]
         return (new_dataset, new_targets)
 
     def predict(self, dataset):
@@ -95,7 +101,7 @@ class DecisionTree:
 
 
 if __name__ == "__main__":
-    data = pd.read_csv('diabetes.csv')
+    data = pd.read_csv('src/diabetes.csv')
 
     # Podział danych na cechy i etykiety
     features = data.drop('Outcome', axis=1)
@@ -105,7 +111,8 @@ if __name__ == "__main__":
     features_list = features.values.tolist()
     labels_list = labels.values.tolist()
 
-    tree = DecisionTree(features_list, labels_list, EqualFrequency())
-    tree.fit()
+    tree = DecisionTree(deepcopy(features_list),
+                        deepcopy(labels_list),
+                        EqualFrequency())
     predictions = tree.predict(features_list)
     print(predictions)
