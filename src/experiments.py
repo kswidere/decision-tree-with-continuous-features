@@ -156,11 +156,11 @@ def evaluate_results(data, test_method, num_runs=2, test_method_params=None):
 if __name__ == "__main__":
     iris_data = prepare_data('src/Iris.csv', 'Species')
     diabetes_data = prepare_data('src/diabetes.csv', 'Outcome')
-    evaluate_results(iris_data, EqualFrequency, 2, {'n': 3})
-    evaluate_results(iris_data, EqualWidth, 2, {'n': 3})
-    evaluate_results(iris_data, KMeansTest, 2, {'n': 3})
-    evaluate_results(iris_data, GiniImpurity, 2)
-    evaluate_results(iris_data, InformationGain, 2)
+    evaluate_results(diabetes_data, EqualFrequency, 2, {'n': 3})
+    evaluate_results(diabetes_data, EqualWidth, 2, {'n': 3})
+    evaluate_results(diabetes_data, KMeansTest, 2, {'n': 3})
+    evaluate_results(diabetes_data, GiniImpurity, 2)
+    evaluate_results(diabetes_data, InformationGain, 2)
 
     # plot_results(run_experiments(diabetes_data, EqualWidth), 'Equal Width')
     # plot_results(run_experiments(

@@ -1,9 +1,7 @@
 """
 Autor: Jakub Kowalczyk
 """
-from math import log2
 import pandas as pd
-from copy import deepcopy
 import numpy as np
 from sklearn.cluster import KMeans
 from abc import ABC, abstractmethod
@@ -25,7 +23,7 @@ class TestMethod(ABC):
 
     def choose_test(self, data: pd.DataFrame):
         """
-        Wybiera najlepszy test dla danego zbioru danych, bazując na information gain.
+        Wybiera najlepszy test dla danego zbioru danych, bazując na przyroście informacji.
 
         Args:
             dataset: Zbiór danych w postaci pandas DataFrame z kolumną 'target'.
@@ -71,14 +69,14 @@ class InformationGain(TestMethod):
         return 'Information Gain'
 
     def find_possible_tests(self, data):
-        possible_tests = []
+        tests = []
         for feature in data.columns[:-1]:
             unique_values = sorted(data[feature].unique())
             for i in range(len(unique_values) - 1):
                 threshold = (unique_values[i] + unique_values[i + 1]) / 2
-                possible_tests.append(lambda row, threshold=threshold,
-                                      feature=feature: row[feature] <= threshold)
-        return possible_tests
+                tests.append(lambda row, threshold=threshold,
+                             feature=feature: row[feature] <= threshold)
+        return tests
 
 
 class EqualFrequency(TestMethod):
@@ -91,15 +89,15 @@ class EqualFrequency(TestMethod):
     def find_possible_tests(self, data: pd.DataFrame):
         tests = []
 
-        for column in data.columns:
+        for column in data.columns[:-1]:
             sorted_values = data[column].sort_values()
-            num_rows = len(sorted_values)
-            group_size = num_rows // self.num_groups
+            column_len = len(sorted_values)
+            group_size = column_len // self.num_groups
 
             for i in range(self.num_groups):
                 lower_index = i * group_size
                 upper_index = (
-                    i + 1) * group_size if i < self.num_groups - 1 else num_rows
+                    i + 1) * group_size if i < self.num_groups - 1 else column_len
                 lower_bound = sorted_values.iloc[lower_index]
                 upper_bound = sorted_values.iloc[upper_index - 1]
 
@@ -146,11 +144,10 @@ class KMeansTest(TestMethod):
 
     def find_possible_tests(self, data: pd.DataFrame):
         tests = []
-        # Exclude the last column which contains the class
         for column in data.columns[:-1]:
             values = data[column].values.reshape(-1, 1)
             num_clusters = min(self.num_clusters, len(np.unique(values)))
-            if num_clusters > 1:  # Ensure there are at least 2 clusters to avoid ValueError
+            if num_clusters > 1:  # co najmniej 2 klastry aby unikąć ValueError
                 kmeans = KMeans(n_clusters=num_clusters,
                                 random_state=0).fit(values)
                 cluster_centers = sorted(kmeans.cluster_centers_.flatten())
@@ -168,28 +165,28 @@ class GiniImpurity(TestMethod):
         return 'Gini Impurity'
 
     def choose_test(self, train_dataset):
-        self.possible_tests = self.find_possible_tests(train_dataset)
-
         best_test = None
         best_gini = float('inf')
 
-        for test in self.possible_tests:
+        for test in self.find_possible_tests(train_dataset):
             gini = self.calculate_gini(train_dataset, test)
+            if gini == 0:
+                return test
             if gini < best_gini:
                 best_gini = gini
                 best_test = test
         return best_test
 
     def find_possible_tests(self, train_dataset):
-        possible_tests = []
+        tests = []
 
         for column in train_dataset.columns[:-1]:
             sorted_values = sorted(train_dataset[column].unique())
             for i in range(len(sorted_values) - 1):
                 average = (sorted_values[i] + sorted_values[i + 1]) / 2
-                possible_tests.append(lambda row, threshold=average,
-                                      feature=column: row[feature] > threshold)
-        return possible_tests
+                tests.append(lambda row, threshold=average,
+                             feature=column: row[feature] > threshold)
+        return tests
 
     def calculate_gini(self, train_dataset, test):
         left_data = train_dataset[train_dataset.apply(test, axis=1)]
@@ -200,10 +197,10 @@ class GiniImpurity(TestMethod):
 
         left_gini = self.calculate_gini_for_target_counts(left_target_counts)
         right_gini = self.calculate_gini_for_target_counts(right_target_counts)
-
+        # całkowite gini impurity - średnia ważona
         return (len(left_data) / len(train_dataset)) * left_gini + (len(right_data) / len(train_dataset)) * right_gini
 
     def calculate_gini_for_target_counts(self, target_counts):
         gini = 1 - sum((count / target_counts.sum())
                        ** 2 for count in target_counts)
-        return gini  # współczynnik Gini dla danych liczb wystąpień klas.
+        return gini  # współczynnik gini dla danych częstotliwości wystąpień klas
