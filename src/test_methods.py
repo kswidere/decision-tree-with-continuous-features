@@ -67,6 +67,9 @@ class TestMethod(ABC):
 
 
 class InformationGain(TestMethod):
+    def __str__(self) -> str:
+        return 'Information Gain'
+
     def find_possible_tests(self, data):
         possible_tests = []
         for feature in data.columns[:-1]:
@@ -79,8 +82,11 @@ class InformationGain(TestMethod):
 
 
 class EqualFrequency(TestMethod):
-    def __init__(self, num_groups=3):
-        self.num_groups = num_groups
+    def __init__(self, n=3):
+        self.num_groups = n
+
+    def __str__(self) -> str:
+        return f'EqualFrequency(num_groups={self.num_groups})'
 
     def find_possible_tests(self, data: pd.DataFrame):
         tests = []
@@ -106,8 +112,11 @@ class EqualFrequency(TestMethod):
 
 
 class EqualWidth(TestMethod):
-    def __init__(self, num_intervals=3) -> None:
-        self.num_intervals = num_intervals
+    def __init__(self, n=3):
+        self.num_intervals = n
+
+    def __str__(self) -> str:
+        return f'EqualWidth(num_intervals={self.num_intervals})'
 
     def find_possible_tests(self, data: pd.DataFrame):
         tests = []
@@ -130,8 +139,11 @@ class EqualWidth(TestMethod):
 
 
 class KMeansTest(TestMethod):
-    def __init__(self, num_clusters=3):
-        self.num_clusters = num_clusters
+    def __init__(self, n=3):
+        self.num_clusters = n
+
+    def __str__(self) -> str:
+        return f'KMeansTest(num_clusters={self.num_clusters})'
 
     def find_possible_tests(self, data: pd.DataFrame):
         tests = []
@@ -154,6 +166,9 @@ class KMeansTest(TestMethod):
 
 
 class GiniImpurity(TestMethod):
+    def __str__(self) -> str:
+        return 'Gini Impurity'
+
     def choose_test(self, train_dataset):
         self.possible_tests = self.find_possible_tests(train_dataset)
 
@@ -165,7 +180,7 @@ class GiniImpurity(TestMethod):
             if gini < best_gini:
                 best_gini = gini
                 best_test = test
-        print(f"wybieram test. Gini: {best_gini}")
+        # print(f"wybieram test. Gini: {best_gini}")
         return best_test
 
     def find_possible_tests(self, train_dataset):
@@ -178,7 +193,7 @@ class GiniImpurity(TestMethod):
                     average = (sorted_values[i] + sorted_values[i + 1]) / 2
                     possible_tests.append(lambda row, threshold=average,
                                           feature=column: row[feature] > threshold)
-        print(f"found possible tests {len(possible_tests)}")
+        # print(f"found possible tests {len(possible_tests)}")
         return possible_tests
 
     def calculate_gini(self, train_dataset, test):

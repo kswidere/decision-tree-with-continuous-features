@@ -5,7 +5,7 @@ import pandas as pd
 from test_methods import (InformationGain, EqualFrequency, GiniImpurity,
                           EqualWidth, KMeansTest)
 from copy import deepcopy
-from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import train_test_split
 from sklearn import tree as sktree
 from tree import DecisionTree
@@ -28,25 +28,7 @@ def predict_using_sklearn(train_data, test_data, criterion='entropy'):
     return y_pred
 
 
-# def run_experiment(data, test_method, num_runs=2):
-#     results = []
-#     for _ in range(num_runs):
-#         train_data, test_data = train_test_split(data, test_size=0.2)
-#         tree = DecisionTree(deepcopy(train_data),
-#                             test_method=test_method, max_height=12)
-#         y_pred = tree.predict(test_data)
-#         results.append(classification_report(test_data['target'], y_pred))
-
-#     return results
-
-
-# def summarize_results(results):
-#     scores = [float(result.split('accuracy')[1].split()[0])
-#               for result in results]
-#     return np.mean(scores), np.std(scores), max(scores), min(scores)
-
-
-def run_experiments(data, test_method, num_runs=2, num_params=2):
+def evaluate_params(data, test_method, num_runs=2, num_params=35):
     results = {'accuracy': [],
                'recall': [], 'precision': [], 'time': []}
     for param in range(2, num_params+2):
@@ -71,7 +53,7 @@ def run_experiments(data, test_method, num_runs=2, num_params=2):
     return results
 
 
-def plot_results(results, title):
+def plot_params_evaluation(results, title):
     params = range(2, len(results['accuracy']) + 2)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
@@ -95,34 +77,79 @@ def plot_results(results, title):
     plt.show()
 
 
+def evaluate_results(data, test_method, num_runs=2, test_method_params=None):
+    results = []
+
+    method_results = {
+        'error': [],
+        'accuracy': [],
+        'recall': [],
+        'precision': [],
+        'f_measure': [],
+        'confusion_matrix': np.zeros((2, 2))  # Assuming binary classification
+    }
+
+    for _ in range(num_runs):
+        train_data, test_data = train_test_split(data, test_size=0.2)
+
+        if test_method_params is not None:  # discretization methods
+            test_method_instance = test_method(**test_method_params)
+            model = DecisionTree(
+                deepcopy(train_data), test_method=test_method_instance, max_height=12)
+        else:                              # gini impurity and inf gain
+            test_method_instance = test_method()
+            model = DecisionTree(
+                deepcopy(train_data), test_method=test_method_instance)
+
+        predictions = model.predict(test_data)
+
+        method_results['error'].append(
+            1 - accuracy_score(test_data['target'], predictions))
+        method_results['accuracy'].append(
+            accuracy_score(test_data['target'], predictions))
+        method_results['recall'].append(
+            recall_score(test_data['target'], predictions))
+        method_results['precision'].append(
+            precision_score(test_data['target'], predictions))
+        method_results['f_measure'].append(
+            f1_score(test_data['target'], predictions))
+        method_results['confusion_matrix'] += confusion_matrix(
+            test_data['target'], predictions)
+
+    for metric in method_results:
+        if metric != 'confusion_matrix':
+            results.append({
+                'metric': metric,
+                'mean': round(np.mean(method_results[metric]), 2),
+                'std': round(np.std(method_results[metric]), 2),
+                'max': round(np.max(method_results[metric]), 2),
+                'min': round(np.min(method_results[metric]), 2)
+            })
+        else:
+            method_results[metric] /= num_runs  # Average the confusion matrix
+
+    # Convert results to a DataFrame
+    print(f"\nResults for {test_method_instance}:\n")
+    results_df = pd.DataFrame(results)
+
+    print(results_df.to_latex(index=False))
+    print(f"Confusion matrix:\n{method_results['confusion_matrix']}")
+
+
 if __name__ == "__main__":
     iris_data = prepare_data('src/Iris.csv', 'Species')
     diabetes_data = prepare_data('src/diabetes.csv', 'Outcome')
-    test_methods = [EqualWidth, EqualFrequency, KMeansTest]
-    plot_results(run_experiments(diabetes_data, EqualWidth), 'Equal Width')
-    plot_results(run_experiments(
-        diabetes_data, EqualFrequency), 'Equal Frequency')
-    plot_results(run_experiments(diabetes_data, KMeansTest), 'KMeans')
-    # test_methods = [EqualWidth(num_intervals=2), EqualFrequency(
-    #     num_groups=2), KMeansTest(num_clusters=2)]
-    # results = {}
+    evaluate_results(diabetes_data, EqualFrequency, 2, {'n': 3})
+    evaluate_results(diabetes_data, EqualWidth, 2, {'n': 3})
+    evaluate_results(diabetes_data, KMeansTest, 2, {'n': 3})
+    evaluate_results(diabetes_data, GiniImpurity, 2)
+    evaluate_results(diabetes_data, InformationGain, 2)
 
-    # for test_method in test_methods:
-    #     results[test_method.__class__.__name__] = run_experiment(
-    #         diabetes_data, test_method)
-
-    # for test_method, result in results.items():
-    #     mean, std, best, worst = summarize_results(result)
-    #     print(f"Wyniki dla {test_method}:")
-    #     print(f"Średnia: {mean}")
-    #     print(f"Odchylenie standardowe: {std}")
-    #     print(f"Najlepszy wynik: {best}")
-    #     print(f"Najgorszy wynik: {worst}")
-    #     print()
+    # plot_results(run_experiments(diabetes_data, EqualWidth), 'Equal Width')
+    # plot_results(run_experiments(
+    #     diabetes_data, EqualFrequency), 'Equal Frequency')
+    # plot_results(run_experiments(diabetes_data, KMeansTest), 'KMeans')
 
     # train_data, test_data = train_test_split(diabetes_data, test_size=0.2)
-    # tree = DecisionTree(deepcopy(train_data), test_method=InformationGain())
-    # y_pred = tree.predict(test_data)
-    # print(classification_report(test_data['target'], y_pred))
     # y_pred_sklearn = predict_using_sklearn(train_data, test_data)
     # print(classification_report(test_data['target'], y_pred_sklearn))
