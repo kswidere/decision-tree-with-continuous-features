@@ -1,3 +1,6 @@
+"""
+Autor: Jakub Kowalczyk
+"""
 from math import log2
 import pandas as pd
 from copy import deepcopy
@@ -66,7 +69,7 @@ class TestMethod(ABC):
 class InformationGain(TestMethod):
     def find_possible_tests(self, data):
         possible_tests = []
-        for feature in data.columns:
+        for feature in data.columns[:-1]:
             unique_values = sorted(data[feature].unique())
             for i in range(len(unique_values) - 1):
                 threshold = (unique_values[i] + unique_values[i + 1]) / 2
@@ -135,14 +138,17 @@ class KMeansTest(TestMethod):
 
         for column in data.columns:
             values = data[column].values.reshape(-1, 1)
-            kmeans = KMeans(n_clusters=self.num_clusters,
-                            random_state=0).fit(values)
-            cluster_centers = sorted(kmeans.cluster_centers_.flatten())
+            num_clusters = min(self.num_clusters, len(values))
+            if num_clusters > 1:  # Ensure there are at least 2 clusters to avoid ValueError
+                kmeans = KMeans(n_clusters=num_clusters,
+                                random_state=0).fit(values)
+                cluster_centers = sorted(kmeans.cluster_centers_.flatten())
 
-            for i in range(1, len(cluster_centers)):
-                threshold = (cluster_centers[i - 1] + cluster_centers[i]) / 2
-                tests.append(lambda x, column=column,
-                             threshold=threshold: x[column] < threshold)
+                for i in range(1, len(cluster_centers)):
+                    threshold = (
+                        cluster_centers[i - 1] + cluster_centers[i]) / 2
+                    tests.append(lambda x, column=column,
+                                 threshold=threshold: x[column] < threshold)
 
         return tests
 

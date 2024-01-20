@@ -1,10 +1,8 @@
-import pandas as pd
-from test_methods import (InformationGain, EqualFrequency, GiniImpurity,
-                          EqualWidth, KMeansTest)
+"""
+Autor: Kinga Świderek
+"""
+
 from copy import deepcopy
-from sklearn.metrics import classification_report
-from sklearn.model_selection import train_test_split
-from sklearn import tree as sktree
 
 
 class TreeNode:
@@ -49,7 +47,7 @@ class DecisionTree:
 
     def fit(self):
         self.height += 1
-        print(self.height)
+        # print(self.height)
 
         leaf_target = self.leaf_target()
 
@@ -105,19 +103,3 @@ class DecisionTree:
 
     def predict(self, dataset):
         return self.root.predict(dataset)
-
-
-if __name__ == "__main__":
-    data = pd.read_csv('src/diabetes.csv')
-    data = data.rename(columns={'Outcome': 'target'})
-    # iris_data = pd.read_csv('src/Iris.csv')
-    # iris_data = data.rename(columns={'Species': 'target'})
-
-    # tree2 = sktree.DecisionTreeClassifier()
-    # tree2.fit(data.drop(columns='target'), data['target'])
-    # y2_pred = tree2.predict(data.drop(columns='target'))
-    tree = DecisionTree(deepcopy(data),
-                        KMeansTest(), max_height=9)
-    y_pred = tree.predict(data)
-    print(tree.height)
-    print(classification_report(data['target'], y_pred))
