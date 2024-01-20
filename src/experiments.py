@@ -78,15 +78,19 @@ def plot_params_evaluation(results, title):
 
 
 def evaluate_results(data, test_method, num_runs=2, test_method_params=None):
+    num_classes = data['target'].nunique()
     results = []
 
     method_results = {
         'error': [],
         'accuracy': [],
-        'recall': [],
-        'precision': [],
-        'f_measure': [],
-        'confusion_matrix': np.zeros((2, 2))  # Assuming binary classification
+        'recall_macro': [],
+        'recall_micro': [],
+        'precision_macro': [],
+        'precision_micro': [],
+        'f_measure_macro': [],
+        'f_measure_micro': [],
+        'confusion_matrix': np.zeros((num_classes, num_classes))
     }
 
     for _ in range(num_runs):
@@ -102,22 +106,36 @@ def evaluate_results(data, test_method, num_runs=2, test_method_params=None):
                 deepcopy(train_data), test_method=test_method_instance)
 
         predictions = model.predict(test_data)
-
         method_results['error'].append(
             1 - accuracy_score(test_data['target'], predictions))
         method_results['accuracy'].append(
             accuracy_score(test_data['target'], predictions))
-        method_results['recall'].append(
-            recall_score(test_data['target'], predictions))
-        method_results['precision'].append(
-            precision_score(test_data['target'], predictions))
-        method_results['f_measure'].append(
-            f1_score(test_data['target'], predictions))
         method_results['confusion_matrix'] += confusion_matrix(
             test_data['target'], predictions)
 
+        if num_classes > 2:  # multi-class classification
+            method_results['recall_macro'].append(
+                recall_score(test_data['target'], predictions, average='macro'))
+            method_results['recall_micro'].append(
+                recall_score(test_data['target'], predictions, average='micro'))
+            method_results['precision_macro'].append(
+                precision_score(test_data['target'], predictions, average='macro'))
+            method_results['precision_micro'].append(
+                precision_score(test_data['target'], predictions, average='micro'))
+            method_results['f_measure_macro'].append(
+                f1_score(test_data['target'], predictions, average='macro'))
+            method_results['f_measure_micro'].append(
+                f1_score(test_data['target'], predictions, average='micro'))
+        else:  # binary classification
+            method_results['recall_macro'].append(
+                recall_score(test_data['target'], predictions))
+            method_results['precision_macro'].append(
+                precision_score(test_data['target'], predictions))
+            method_results['f_measure_macro'].append(
+                f1_score(test_data['target'], predictions))
+
     for metric in method_results:
-        if metric != 'confusion_matrix':
+        if len(method_results[metric]) > 0 and metric != 'confusion_matrix':
             results.append({
                 'metric': metric,
                 'mean': round(np.mean(method_results[metric]), 2),
@@ -125,11 +143,10 @@ def evaluate_results(data, test_method, num_runs=2, test_method_params=None):
                 'max': round(np.max(method_results[metric]), 2),
                 'min': round(np.min(method_results[metric]), 2)
             })
-        else:
+        elif metric == 'confusion_matrix':
             method_results[metric] /= num_runs  # Average the confusion matrix
 
-    # Convert results to a DataFrame
-    print(f"\nResults for {test_method_instance}:\n")
+    print(f"\nResults for {test_method_instance}:")
     results_df = pd.DataFrame(results)
 
     print(results_df.to_latex(index=False))
@@ -139,11 +156,11 @@ def evaluate_results(data, test_method, num_runs=2, test_method_params=None):
 if __name__ == "__main__":
     iris_data = prepare_data('src/Iris.csv', 'Species')
     diabetes_data = prepare_data('src/diabetes.csv', 'Outcome')
-    evaluate_results(diabetes_data, EqualFrequency, 2, {'n': 3})
-    evaluate_results(diabetes_data, EqualWidth, 2, {'n': 3})
-    evaluate_results(diabetes_data, KMeansTest, 2, {'n': 3})
-    evaluate_results(diabetes_data, GiniImpurity, 2)
-    evaluate_results(diabetes_data, InformationGain, 2)
+    evaluate_results(iris_data, EqualFrequency, 2, {'n': 3})
+    evaluate_results(iris_data, EqualWidth, 2, {'n': 3})
+    evaluate_results(iris_data, KMeansTest, 2, {'n': 3})
+    evaluate_results(iris_data, GiniImpurity, 2)
+    evaluate_results(iris_data, InformationGain, 2)
 
     # plot_results(run_experiments(diabetes_data, EqualWidth), 'Equal Width')
     # plot_results(run_experiments(

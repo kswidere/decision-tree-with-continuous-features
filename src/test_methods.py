@@ -121,7 +121,7 @@ class EqualWidth(TestMethod):
     def find_possible_tests(self, data: pd.DataFrame):
         tests = []
 
-        for column in data.columns:
+        for column in data.columns[:-1]:
             min_value = data[column].min()
             max_value = data[column].max()
             interval_width = (max_value - min_value) / self.num_intervals
@@ -134,7 +134,6 @@ class EqualWidth(TestMethod):
                     return lower_bound <= row[column] < upper_bound
 
                 tests.append(test)
-
         return tests
 
 
@@ -147,10 +146,10 @@ class KMeansTest(TestMethod):
 
     def find_possible_tests(self, data: pd.DataFrame):
         tests = []
-
-        for column in data.columns:
+        # Exclude the last column which contains the class
+        for column in data.columns[:-1]:
             values = data[column].values.reshape(-1, 1)
-            num_clusters = min(self.num_clusters, len(values))
+            num_clusters = min(self.num_clusters, len(np.unique(values)))
             if num_clusters > 1:  # Ensure there are at least 2 clusters to avoid ValueError
                 kmeans = KMeans(n_clusters=num_clusters,
                                 random_state=0).fit(values)
@@ -161,7 +160,6 @@ class KMeansTest(TestMethod):
                         cluster_centers[i - 1] + cluster_centers[i]) / 2
                     tests.append(lambda x, column=column,
                                  threshold=threshold: x[column] < threshold)
-
         return tests
 
 
@@ -180,20 +178,17 @@ class GiniImpurity(TestMethod):
             if gini < best_gini:
                 best_gini = gini
                 best_test = test
-        # print(f"wybieram test. Gini: {best_gini}")
         return best_test
 
     def find_possible_tests(self, train_dataset):
         possible_tests = []
 
-        for column in train_dataset.columns:
-            if column != 'target':
-                sorted_values = sorted(train_dataset[column].unique())
-                for i in range(len(sorted_values) - 1):
-                    average = (sorted_values[i] + sorted_values[i + 1]) / 2
-                    possible_tests.append(lambda row, threshold=average,
-                                          feature=column: row[feature] > threshold)
-        # print(f"found possible tests {len(possible_tests)}")
+        for column in train_dataset.columns[:-1]:
+            sorted_values = sorted(train_dataset[column].unique())
+            for i in range(len(sorted_values) - 1):
+                average = (sorted_values[i] + sorted_values[i + 1]) / 2
+                possible_tests.append(lambda row, threshold=average,
+                                      feature=column: row[feature] > threshold)
         return possible_tests
 
     def calculate_gini(self, train_dataset, test):
@@ -209,10 +204,6 @@ class GiniImpurity(TestMethod):
         return (len(left_data) / len(train_dataset)) * left_gini + (len(right_data) / len(train_dataset)) * right_gini
 
     def calculate_gini_for_target_counts(self, target_counts):
-        """
-        Oblicza współczynnik Gini dla danych liczb wystąpień klas.
-        Zwraca target_counts: Liczby wystąpień klas w postaci pandas Series.
-        """
         gini = 1 - sum((count / target_counts.sum())
                        ** 2 for count in target_counts)
-        return gini
+        return gini  # współczynnik Gini dla danych liczb wystąpień klas.
