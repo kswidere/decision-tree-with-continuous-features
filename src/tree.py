@@ -47,7 +47,6 @@ class DecisionTree:
 
     def fit(self):
         self.height += 1
-        # print(self.height)
 
         leaf_target = self.leaf_target()
 
@@ -58,8 +57,8 @@ class DecisionTree:
         test = self.choose_test()
         root = TreeNode(False, test=deepcopy(test))
         default_target = self.find_default_target()
-        left_data = self.find_new_data(test, False)
-        right_data = self.find_new_data(test, True)
+        left_data = self.find_new_data(test, True)
+        right_data = self.find_new_data(test, False)
 
         subtree_left = DecisionTree(left_data,
                                     self.test_method,
