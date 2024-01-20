@@ -1,5 +1,5 @@
 import pandas as pd
-from test_methods import InformationGainTest, EqualFrequencyTest, GiniImpurityTest
+from test_methods import InformationGain, EqualFrequency, GiniImpurity, EqualWidth, KMeansTest
 from copy import deepcopy
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
@@ -57,9 +57,9 @@ class DecisionTree:
         right_data = self.find_new_data(test, True)
 
         subtree_left = DecisionTree(
-            left_data, self.test_method, default_target, self.possible_tests)
+            left_data, self.test_method, default_target, possible_tests=self.possible_tests)
         subtree_right = DecisionTree(
-            right_data, self.test_method, default_target, self.possible_tests)
+            right_data, self.test_method, default_target, possible_tests=self.possible_tests)
 
         root.left = subtree_left.root
         root.right = subtree_right.root
@@ -95,14 +95,14 @@ class DecisionTree:
 if __name__ == "__main__":
     data = pd.read_csv('src/diabetes.csv')
     data = data.rename(columns={'Outcome': 'target'})
-    iris_data = pd.read_csv('src/Iris.csv')
-    iris_data = data.rename(columns={'Species': 'target'})
+    # iris_data = pd.read_csv('src/Iris.csv')
+    # iris_data = data.rename(columns={'Species': 'target'})
 
+    # tree2 = sktree.DecisionTreeClassifier()
+    # tree2.fit(data.drop(columns='target'), data['target'])
+    # y2_pred = tree2.predict(data.drop(columns='target'))
     tree = DecisionTree(deepcopy(data),
-                        GiniImpurityTest())
-    tree2 = sktree.DecisionTreeClassifier()
-    tree2.fit(data.drop(columns='target'), data['target'])
-    y2_pred = tree2.predict(data.drop(columns='target'))
+                        GiniImpurity())
     y_pred = tree.predict(data)
     # print(y_pred)
     print(classification_report(data['target'], y_pred))

@@ -1,25 +1,14 @@
 from math import log2
-import math
 import pandas as pd
 from copy import deepcopy
 import numpy as np
+from sklearn.cluster import KMeans
+from abc import ABC, abstractmethod
 
 
-class TestMethod:
-    def choose_test(self, train_dataset):
-        """
-        Wybiera najlepszy test dla danego zbioru danych.
-
-        Args:
-            dataset: Zbiór danych w postaci pandas DataFrame z kolumną 'target'.
-
-        Returns:
-            Funkcja testująca, która przyjmuje wiersz danych i zwraca wartość logiczną.
-        """
-        raise NotImplementedError(
-            "This method needs to be overridden in subclasses")
-
-    def find_possible_tests(self, train_dataset):
+class TestMethod(ABC):
+    @abstractmethod
+    def find_possible_tests(self, data: pd.DataFrame):
         """
         Znajduje możliwe testy dla danego zbioru danych.
 
@@ -29,35 +18,18 @@ class TestMethod:
         Returns:
             Lista funkcji testujących, które przyjmują wiersz danych i zwracają wartość logiczną.
         """
-        raise NotImplementedError(
-            "This method needs to be overridden in subclasses")
+        pass
 
+    def choose_test(self, data: pd.DataFrame):
+        """
+        Wybiera najlepszy test dla danego zbioru danych, bazując na information gain.
 
-class InformationGainTest:
-    def entropy(self, targets):
-        value, counts = np.unique(targets, return_counts=True)
-        probabilities = counts / counts.sum()
-        entropy = -sum(probabilities * np.log2(probabilities))
-        return entropy if not np.isnan(entropy) else 0
+        Args:
+            dataset: Zbiór danych w postaci pandas DataFrame z kolumną 'target'.
 
-    def information_gain(self, left_targets, right_targets, current_entropy):
-        p_left = len(left_targets) / (len(left_targets) + len(right_targets))
-        p_right = 1 - p_left
-        gain = current_entropy - p_left * \
-            self.entropy(left_targets) - p_right * self.entropy(right_targets)
-        return gain
-
-    def find_possible_tests(self, data):
-        possible_tests = []
-        for feature in data.columns:
-            unique_values = sorted(data[feature].unique())
-            for i in range(len(unique_values) - 1):
-                threshold = (unique_values[i] + unique_values[i + 1]) / 2
-                possible_tests.append(lambda row, threshold=threshold,
-                                      feature=feature: row[feature] <= threshold)
-        return possible_tests
-
-    def choose_test(self, data):
+        Returns:
+            Funkcja testująca, która przyjmuje wiersz danych i zwraca wartość logiczną.
+        """
         targets = data['target']
         current_entropy = self.entropy(targets)
         best_gain = -1
@@ -77,26 +49,117 @@ class InformationGainTest:
 
         return best_test
 
+    def entropy(self, targets):
+        _, counts = np.unique(targets, return_counts=True)
+        probabilities = counts / counts.sum()
+        entropy = -sum(probabilities * np.log2(probabilities))
+        return entropy if not np.isnan(entropy) else 0
+
+    def information_gain(self, left_targets, right_targets, current_entropy):
+        p_left = len(left_targets) / (len(left_targets) + len(right_targets))
+        p_right = 1 - p_left
+        gain = current_entropy - p_left * \
+            self.entropy(left_targets) - p_right * self.entropy(right_targets)
+        return gain
+
+
+class InformationGain(TestMethod):
+    def find_possible_tests(self, data):
+        possible_tests = []
+        for feature in data.columns:
+            unique_values = sorted(data[feature].unique())
+            for i in range(len(unique_values) - 1):
+                threshold = (unique_values[i] + unique_values[i + 1]) / 2
+                possible_tests.append(lambda row, threshold=threshold,
+                                      feature=feature: row[feature] <= threshold)
+        return possible_tests
+
+
+class EqualFrequency(TestMethod):
+    def __init__(self, num_groups=3):
+        self.num_groups = num_groups
+
+    def find_possible_tests(self, data: pd.DataFrame):
+        tests = []
+
+        for column in data.columns:
+            sorted_values = data[column].sort_values()
+            num_rows = len(sorted_values)
+            group_size = num_rows // self.num_groups
+
+            for i in range(self.num_groups):
+                lower_index = i * group_size
+                upper_index = (
+                    i + 1) * group_size if i < self.num_groups - 1 else num_rows
+                lower_bound = sorted_values.iloc[lower_index]
+                upper_bound = sorted_values.iloc[upper_index - 1]
+
+                def test(row, column=column, lower_bound=lower_bound, upper_bound=upper_bound):
+                    return lower_bound <= row[column] <= upper_bound
+
+                tests.append(test)
+
+        return tests
+
 
 class EqualWidth(TestMethod):
-    pass
+    def __init__(self, num_intervals=3) -> None:
+        self.num_intervals = num_intervals
+
+    def find_possible_tests(self, data: pd.DataFrame):
+        tests = []
+
+        for column in data.columns:
+            min_value = data[column].min()
+            max_value = data[column].max()
+            interval_width = (max_value - min_value) / self.num_intervals
+
+            for i in range(self.num_intervals):
+                lower_bound = min_value + i * interval_width
+                upper_bound = lower_bound + interval_width
+
+                def test(row, column=column, lower_bound=lower_bound, upper_bound=upper_bound):
+                    return lower_bound <= row[column] < upper_bound
+
+                tests.append(test)
+
+        return tests
 
 
-class KMeans(TestMethod):
-    pass
+class KMeansTest(TestMethod):
+    def __init__(self, num_clusters=3):
+        self.num_clusters = num_clusters
+
+    def find_possible_tests(self, data: pd.DataFrame):
+        tests = []
+
+        for column in data.columns:
+            values = data[column].values.reshape(-1, 1)
+            kmeans = KMeans(n_clusters=self.num_clusters,
+                            random_state=0).fit(values)
+            cluster_centers = sorted(kmeans.cluster_centers_.flatten())
+
+            for i in range(1, len(cluster_centers)):
+                threshold = (cluster_centers[i - 1] + cluster_centers[i]) / 2
+                tests.append(lambda x, column=column,
+                             threshold=threshold: x[column] < threshold)
+
+        return tests
 
 
-class GiniImpurityTest(TestMethod):
+class GiniImpurity(TestMethod):
     def choose_test(self, train_dataset):
+        self.possible_tests = self.find_possible_tests(train_dataset)
+
         best_test = None
         best_gini = float('inf')
 
-        for test in self.find_possible_tests(train_dataset):
+        for test in self.possible_tests:
             gini = self.calculate_gini(train_dataset, test)
             if gini < best_gini:
                 best_gini = gini
                 best_test = test
-        print(f"wybieram test {best_test}")
+        print(f"wybieram test. Gini: {best_gini}")
         return best_test
 
     def find_possible_tests(self, train_dataset):
@@ -109,7 +172,7 @@ class GiniImpurityTest(TestMethod):
                     average = (sorted_values[i] + sorted_values[i + 1]) / 2
                     possible_tests.append(lambda row, threshold=average,
                                           feature=column: row[feature] > threshold)
-        print("found possible tests")
+        print(f"found possible tests {len(possible_tests)}")
         return possible_tests
 
     def calculate_gini(self, train_dataset, test):
@@ -132,54 +195,3 @@ class GiniImpurityTest(TestMethod):
         gini = 1 - sum((count / target_counts.sum())
                        ** 2 for count in target_counts)
         return gini
-
-
-class EqualFrequencyTest(TestMethod):
-    def choose_test(self, train_dataset):
-        best_test = None
-        best_info_gain = -np.inf
-
-        possible_tests = self.find_possible_tests(train_dataset)
-
-        for test in possible_tests:
-            info_gain = self.calculate_information_gain(test, train_dataset)
-            if info_gain > best_info_gain:
-                best_info_gain = info_gain
-                best_test = test
-        print(f"wybieram test {best_test}")
-        return best_test
-
-    def find_possible_tests(self, train_dataset):
-        possible_tests = []
-
-        for column in train_dataset.columns:
-            if column != 'target':
-                # Sort the values and split into bins with approximately equal number of observations
-                sorted_values = sorted(train_dataset[column].dropna().unique())
-                n_bins = int(np.sqrt(len(sorted_values)))
-                bins = pd.qcut(sorted_values, q=n_bins,
-                               duplicates='drop', retbins=True)[1]
-
-                # Create tests for the thresholds between bins
-                for i in range(1, len(bins)):
-                    threshold = bins[i]
-                    possible_tests.append(
-                        lambda row, column=column, threshold=threshold: row[column] <= threshold)
-        print("found possible tests")
-        return possible_tests
-
-    def calculate_information_gain(self, test, dataset):
-        entropy_before = self.calculate_entropy(dataset['target'])
-
-        passed = dataset[dataset.apply(test, axis=1)]
-        failed = dataset[~dataset.apply(test, axis=1)]
-
-        entropy_after = (len(passed) / len(dataset)) * self.calculate_entropy(passed['target']) + \
-                        (len(failed) / len(dataset)) * \
-            self.calculate_entropy(failed['target'])
-
-        return entropy_before - entropy_after
-
-    def calculate_entropy(self, series):
-        probabilities = series.value_counts(normalize=True)
-        return -np.sum(probabilities * np.log2(probabilities))
