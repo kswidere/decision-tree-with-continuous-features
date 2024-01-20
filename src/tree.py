@@ -1,5 +1,6 @@
 import pandas as pd
-from test_methods import InformationGain, EqualFrequency, GiniImpurity, EqualWidth, KMeansTest
+from test_methods import (InformationGain, EqualFrequency, GiniImpurity,
+                          EqualWidth, KMeansTest)
 from copy import deepcopy
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
@@ -34,9 +35,12 @@ class TreeNode:
 
 class DecisionTree:
     def __init__(self, train_data, test_method,
-                 default_target=None, possible_tests=None):
+                 default_target=None, possible_tests=None,
+                 max_height=None, height=None):
         self.train_data = train_data
         self.test_method = test_method
+        self.max_height = max_height
+        self.height = 0 if height is None else height
         self.default_target = (self.find_default_target()
                                if default_target is None else default_target)
         self.possible_tests = (self.find_possible_tests()
@@ -44,6 +48,9 @@ class DecisionTree:
         self.root: TreeNode = self.fit()
 
     def fit(self):
+        self.height += 1
+        print(self.height)
+
         leaf_target = self.leaf_target()
 
         if leaf_target is not None:
@@ -56,10 +63,18 @@ class DecisionTree:
         left_data = self.find_new_data(test, False)
         right_data = self.find_new_data(test, True)
 
-        subtree_left = DecisionTree(
-            left_data, self.test_method, default_target, possible_tests=self.possible_tests)
-        subtree_right = DecisionTree(
-            right_data, self.test_method, default_target, possible_tests=self.possible_tests)
+        subtree_left = DecisionTree(left_data,
+                                    self.test_method,
+                                    default_target,
+                                    possible_tests=self.possible_tests,
+                                    max_height=self.max_height,
+                                    height=self.height)
+        subtree_right = DecisionTree(right_data,
+                                     self.test_method,
+                                     default_target,
+                                     possible_tests=self.possible_tests,
+                                     max_height=self.max_height,
+                                     height=self.height)
 
         root.left = subtree_left.root
         root.right = subtree_right.root
@@ -70,7 +85,7 @@ class DecisionTree:
             return self.train_data['target'].iloc[0]
         elif self.train_data.empty:
             return self.default_target
-        elif not self.possible_tests:
+        elif not self.possible_tests or (self.max_height and self.height >= self.max_height):
             return self.find_default_target()
         return None
 
@@ -102,7 +117,7 @@ if __name__ == "__main__":
     # tree2.fit(data.drop(columns='target'), data['target'])
     # y2_pred = tree2.predict(data.drop(columns='target'))
     tree = DecisionTree(deepcopy(data),
-                        GiniImpurity())
+                        KMeansTest(), max_height=9)
     y_pred = tree.predict(data)
-    # print(y_pred)
+    print(tree.height)
     print(classification_report(data['target'], y_pred))
