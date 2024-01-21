@@ -28,28 +28,26 @@ def predict_using_sklearn(train_data, test_data, criterion='entropy'):
     return y_pred
 
 
-def evaluate_params(data, test_method, num_runs=2, num_params=35):
+def evaluate_params(data, test_method, num_params=30):
     results = {'accuracy': [],
                'recall': [], 'precision': [], 'time': []}
+
+    train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
+
     for param in range(2, num_params+2):
-        accuracies, recalls, precisions, times = [], [], [], []
-        for _ in range(num_runs):
-            train_data, test_data = train_test_split(data, test_size=0.2)
-            start_time = time()
-            tree = DecisionTree(deepcopy(train_data),
-                                test_method=test_method(param), max_height=12)
-            elapsed_time = time() - start_time
-            y_pred = tree.predict(test_data)
-            accuracies.append(accuracy_score(test_data['target'], y_pred))
-            recalls.append(recall_score(
-                test_data['target'], y_pred, average='macro'))
-            precisions.append(precision_score(
-                test_data['target'], y_pred, average='macro'))
-            times.append(elapsed_time)
-        results['accuracy'].append(np.mean(accuracies))
-        results['recall'].append(np.mean(recalls))
-        results['precision'].append(np.mean(precisions))
-        results['time'].append(np.mean(times))
+        start_time = time()
+        tree = DecisionTree(deepcopy(train_data),
+                            test_method=test_method(param),
+                            max_height=10)
+        elapsed_time = time() - start_time
+        y_pred = tree.predict(test_data)
+        results['accuracy'].append(accuracy_score(test_data['target'], y_pred))
+        results['recall'].append(recall_score(
+            test_data['target'], y_pred, average='macro'))
+        results['precision'].append(precision_score(
+            test_data['target'], y_pred, average='macro'))
+        results['time'].append(elapsed_time)
+
     return results
 
 
@@ -73,11 +71,11 @@ def plot_params_evaluation(results, title):
     ax2.legend()
 
     plt.tight_layout()
-    plt.savefig(f"plots/{title}.png")
+    plt.savefig(f"../plots/{title}.png")
     plt.show()
 
 
-def evaluate_results(data, test_method, num_runs=2, test_method_params=None):
+def evaluate_results(data, test_method=None, num_runs=20, test_method_params=None, scikit=False):
     num_classes = data['target'].nunique()
     results = []
 
@@ -90,26 +88,36 @@ def evaluate_results(data, test_method, num_runs=2, test_method_params=None):
         'precision_micro': [],
         'f_measure_macro': [],
         'f_measure_micro': [],
+        'time': [],
         'confusion_matrix': np.zeros((num_classes, num_classes))
     }
 
     for _ in range(num_runs):
         train_data, test_data = train_test_split(data, test_size=0.2)
 
-        if test_method_params is not None:  # discretization methods
-            test_method_instance = test_method(**test_method_params)
-            model = DecisionTree(
-                deepcopy(train_data), test_method=test_method_instance, max_height=12)
-        else:                              # gini impurity and inf gain
-            test_method_instance = test_method()
-            model = DecisionTree(
-                deepcopy(train_data), test_method=test_method_instance)
+        if scikit:
+            start_time = time()
+            model = sktree.DecisionTreeClassifier(max_depth=10)
+            model.fit(train_data.drop(columns='target'), train_data['target'])
+            elapsed_time = time() - start_time
+        else:
+            if test_method_params is not None:  # discretization methods
+                test_method_instance = test_method(**test_method_params)
+            else:                              # gini impurity and inf gain
+                test_method_instance = test_method()
 
-        predictions = model.predict(test_data)
+            start_time = time()
+            model = DecisionTree(deepcopy(train_data),
+                                 test_method=test_method_instance,
+                                 max_height=10)
+            elapsed_time = time() - start_time
+
+        predictions = model.predict(test_data.drop(['target'], axis=1))
         method_results['error'].append(
             1 - accuracy_score(test_data['target'], predictions))
         method_results['accuracy'].append(
             accuracy_score(test_data['target'], predictions))
+        method_results['time'].append(elapsed_time)
         method_results['confusion_matrix'] += confusion_matrix(
             test_data['target'], predictions)
 
@@ -146,7 +154,10 @@ def evaluate_results(data, test_method, num_runs=2, test_method_params=None):
         elif metric == 'confusion_matrix':
             method_results[metric] /= num_runs  # Average the confusion matrix
 
-    print(f"\nResults for {test_method_instance}:")
+    if scikit:
+        print("\nResults for sci-kit tree")
+    else:
+        print(f"\nResults for {test_method_instance}:")
     results_df = pd.DataFrame(results)
 
     print(results_df.to_latex(index=False))
@@ -154,19 +165,18 @@ def evaluate_results(data, test_method, num_runs=2, test_method_params=None):
 
 
 if __name__ == "__main__":
-    iris_data = prepare_data('src/Iris.csv', 'Species')
-    diabetes_data = prepare_data('src/diabetes.csv', 'Outcome')
-    evaluate_results(diabetes_data, EqualFrequency, 2, {'n': 3})
-    evaluate_results(diabetes_data, EqualWidth, 2, {'n': 3})
-    evaluate_results(diabetes_data, KMeansTest, 2, {'n': 3})
-    evaluate_results(diabetes_data, GiniImpurity, 2)
-    evaluate_results(diabetes_data, InformationGain, 2)
+    iris_data = prepare_data('Iris.csv', 'Species')
+    diabetes_data = prepare_data('diabetes.csv', 'Outcome')
+    evaluate_results(iris_data, EqualFrequency, 20, {'n': 12})
+    evaluate_results(iris_data, EqualWidth, 20, {'n': 3})
+    evaluate_results(iris_data, KMeansTest, 20, {'n': 3})
+    evaluate_results(iris_data, GiniImpurity, 20)
+    evaluate_results(iris_data, InformationGain, 20)
+    evaluate_results(iris_data, num_runs=20, scikit=True)
 
-    # plot_results(run_experiments(diabetes_data, EqualWidth), 'Equal Width')
-    # plot_results(run_experiments(
-    #     diabetes_data, EqualFrequency), 'Equal Frequency')
-    # plot_results(run_experiments(diabetes_data, KMeansTest), 'KMeans')
-
-    # train_data, test_data = train_test_split(diabetes_data, test_size=0.2)
-    # y_pred_sklearn = predict_using_sklearn(train_data, test_data)
-    # print(classification_report(test_data['target'], y_pred_sklearn))
+    evaluate_results(diabetes_data, EqualFrequency, 20, {'n': 9})
+    evaluate_results(diabetes_data, EqualWidth, 20, {'n': 3})
+    evaluate_results(diabetes_data, KMeansTest, 20, {'n': 12})
+    evaluate_results(diabetes_data, GiniImpurity, 20)
+    evaluate_results(diabetes_data, InformationGain, 20)
+    evaluate_results(iris_data, num_runs=20, scikit=True)

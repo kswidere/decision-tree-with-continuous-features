@@ -47,7 +47,6 @@ class DecisionTree:
 
     def fit(self):
         self.height += 1
-
         leaf_target = self.leaf_target()
 
         if leaf_target is not None:
